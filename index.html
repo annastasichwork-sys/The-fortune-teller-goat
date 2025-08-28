@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Шар с предсказаниями</title>
+  <style>
+    :root{
+      --bg:#0b0f1a;
+      --card:#111827;
+      --muted:#94a3b8;
+      --text:#e5e7eb;
+      --accent:#8b5cf6;
+      --accent-2:#06b6d4;
+      --good:#10b981;
+      --danger:#ef4444;
+      --warn:#f59e0b;
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 10% 10%, #0f172a 0%, #0b0f1a 35%, #070a12 100%);
+      color:var(--text); display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .app{width:100%; max-width:1100px; display:grid; gap:20px; grid-template-columns:1fr;}
+    @media (min-width: 980px){ .app{grid-template-columns: 1.2fr 1fr;} }
+
+    .panel{background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,.35);}
+    .panel h2{margin:0 0 10px; font-weight:700; font-size:18px}
+
+    .ball-wrap{display:flex; align-items:center; justify-content:center; padding:16px;}
+    .ball{
+      width:min(78vw, 540px); height: min(78vw, 540px);
+      border-radius:50%; position:relative; cursor:pointer; user-select:none; transform: translateZ(0);
+      background: radial-gradient(60% 60% at 40% 30%, #1f2a5a 0%, #151a3d 35%, #0b0f1a 70%, #06080f 100%);
+      box-shadow: inset -30px -50px 120px rgba(0,0,0,.65), inset 20px 30px 80px rgba(139,92,246,.25), 0 25px 60px rgba(5,10,20,.6);
+    }
+    .ball::before{ /* highlight */
+      content:""; position:absolute; left:10%; top:8%; width:38%; height:38%; border-radius:50%;
+      background: radial-gradient(closest-side, rgba(255,255,255,.35), rgba(255,255,255,.04), transparent);
+      filter: blur(1px);
+    }
+    .ball::after{ /* bottom glow */
+      content:""; position:absolute; inset:auto 15% 8% 15%; height:12%; border-radius:50%;
+      background: radial-gradient(50% 110% at 50% 100%, rgba(6,182,212,.25), transparent 70%);
+      filter: blur(3px);
+    }
+
+    .well{ /* inner window */
+      position:absolute; inset:18% 18% 18% 18%; border-radius:50%;
+      background: radial-gradient(70% 70% at 50% 30%, #1f2937 0%, #0f172a 70%, #0a0f1d 100%);
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow: inset 0 10px 24px rgba(0,0,0,.6), 0 0 0 6px rgba(139,92,246,.2);
+      display:flex; align-items:center; justify-content:center; text-align:center; padding:24px;
+    }
+    .prediction{
+      font-size: clamp(18px, 2.2vw, 28px);
+      line-height:1.35; font-weight:700; letter-spacing:.2px; color:#eaf2ff;
+      text-shadow: 0 1px 0 rgba(255,255,255,.08), 0 0 12px rgba(99,102,241,.22);
+      transition: transform .18s ease;
+    }
+    .ball:active .prediction{ transform: scale(.98); }
+
+    .badge{position:absolute; top:14px; right:14px; font-size:12px; padding:6px 10px; color:#dbeafe;
+      background: linear-gradient(180deg, rgba(99,102,241,.25), rgba(6,182,212,.25)); border:1px solid rgba(148,163,184,.35);
+      border-radius:999px; letter-spacing:.3px;}
+
+    .controls{display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:center; margin-top:12px}
+    .btn{
+      padding:11px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06); color:var(--text); cursor:pointer; font-weight:600; letter-spacing:.2px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2); backdrop-filter: blur(4px);
+    }
+    .btn:hover{ background: rgba(255,255,255,.1) }
+    .btn.primary{ background: linear-gradient(180deg, rgba(139,92,246,.25), rgba(6,182,212,.25)); }
+    .btn.danger{ background: linear-gradient(180deg, rgba(239,68,68,.18), rgba(239,68,68,.10)); }
+
+    .editor{ padding:16px; display:grid; gap:12px;}
+    .row{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
+    @media (max-width: 720px){ .row{ grid-template-columns: 1fr; } }
+    label{font-size:12px; color:var(--muted); margin-bottom:6px; display:block}
+    select, input[type="text"], textarea{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:#0b1020; color:var(--text);
+    }
+    textarea{min-height:120px; font-family:inherit}
+
+    .pill{
+      display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border-radius:999px; font-size:12px;
+      background:#0c1224; border:1px solid rgba(255,255,255,.12); margin:4px 6px 0 0;
+    }
+    .pill button{ all:unset; cursor:pointer; font-weight:700; color:var(--danger)}
+
+    .list{ display:grid; gap:8px; max-height:260px; overflow:auto; padding-right:4px; }
+    .item{ background:#0c1224; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px; display:flex; gap:8px; }
+    .item input{ flex:1; background:transparent; border:none; color:var(--text); padding:6px 8px }
+    .item .x{ cursor:pointer; border:none; background:transparent; color:#fca5a5; font-weight:900; font-size:18px; }
+
+    .footer{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; margin-top:8px}
+    .hint{font-size:12px; color:var(--muted)}
+
+    /* Shake animation */
+    @keyframes shake{ 10%, 90%{transform: translate3d(-1px, 0, 0);} 20%, 80%{transform: translate3d(2px, 0, 0);} 30%, 50%, 70%{transform: translate3d(-4px, 0, 0);} 40%, 60%{transform: translate3d(4px, 0, 0);} }
+    .shake{ animation: shake .6s cubic-bezier(.36,.07,.19,.97) both; backface-visibility:hidden; perspective:1000px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="panel" style="padding:16px 16px 4px">
+      <div class="ball-wrap">
+        <div id="ball" class="ball" role="button" aria-label="Получить предсказание" tabindex="0">
+          <div class="badge" id="themeBadge">Тема: —</div>
+          <div class="well">
+            <div class="prediction" id="prediction">Нажми на шар ✨</div>
+          </div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="btnRandom">Случайное предсказание</button>
+        <button class="btn" id="btnNoRepeat">Без повторов: <span id="noRepeatState">вкл</span></button>
+        <button class="btn" id="btnEditorToggle">Редактор</button>
+        <button class="btn" id="btnExport">Экспорт JSON</button>
+        <label class="pill">Авто‑тема по неделе
+          <input type="checkbox" id="autoTheme" style="accent-color:#8b5cf6;margin-left:6px" />
+        </label>
+      </div>
+    </section>
+
+    <section class="panel editor" id="editor" style="display:none">
+      <div class="row">
+        <div>
+          <label>Текущая тема</label>
+          <select id="themeSelect"></select>
+        </div>
+        <div>
+          <label>Новая тема</label>
+          <div style="display:flex; gap:8px">
+            <input type="text" id="newTheme" placeholder="Например: Знаки маркетолога"/>
+            <button class="btn" id="addTheme">Добавить</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label>Предсказания для темы <strong id="topicName">—</strong></label>
+        <div class="list" id="predList"></div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <input type="text" id="newPred" placeholder="Добавить предсказание…"/>
+          <button class="btn" id="addPred">Добавить</button>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="hint">Сохраняется автоматически (localStorage). Экспортируй JSON, чтобы делиться настройками.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <input type="file" id="importFile" accept="application/json" style="display:none"/>
+          <button class="btn" id="btnImport">Импорт JSON</button>
+          <button class="btn danger" id="btnReset">Сбросить к демо‑набору</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (function(){
+    const el = (id)=>document.getElementById(id);
+    const predictionEl = el('prediction');
+    const themeBadge = el('themeBadge');
+    const themeSelect = el('themeSelect');
+    const topicName = el('topicName');
+    const predList = el('predList');
+    const btnRandom = el('btnRandom');
+    const btnEditorToggle = el('btnEditorToggle');
+    const editor = el('editor');
+    const newTheme = el('newTheme');
+    const addTheme = el('addTheme');
+    const newPred = el('newPred');
+    const addPred = el('addPred');
+    const btnExport = el('btnExport');
+    const btnImport = el('btnImport');
+    const importFile = el('importFile');
+    const btnReset = el('btnReset');
+    const btnNoRepeat = el('btnNoRepeat');
+    const noRepeatState = el('noRepeatState');
+    const autoTheme = el('autoTheme');
+    const ball = el('ball');
+
+    const DEMO = {
+      meta:{ activeTheme:"Знаки от вселенной", noRepeat:true, autoTheme:false, themeRotation:["Знаки от вселенной","Знаки маркетолога"] },
+      themes:{
+        "Знаки от вселенной":[
+          "Случайная встреча принесёт новую идею.",
+          "Подсказка спрячется в первом заголовке, который увидишь утром.",
+          "Сегодняшняя задержка — шанс повернуть не туда и найти нужное.",
+          "Число, которое повторится трижды, — сигнал действовать.",
+          "Попроси у вселенной подтверждение — оно придёт мемом."
+        ],
+        "Знаки маркетолога":[
+          "CPC упадёт, если уберёшь одно слово из объявления.",
+          "Первый комментарий к посту — подсказка, что исправить в оффере.",
+          "Сегментация решит 80% проблемы — начни с посадочной.",
+          "Самая конвертящая фраза уже есть в отзывах.",
+          "A/B‑тест сработает, если гипотеза смешная, но проверяемая."
+        ]
+      },
+      history:{}
+    };
+
+    const storeKey = 'fortune-ball-v1';
+    const load = ()=>{ try{ return JSON.parse(localStorage.getItem(storeKey)) || DEMO }catch(e){ return DEMO } };
+    const save = (data)=> localStorage.setItem(storeKey, JSON.stringify(data));
+
+    let state = load();
+
+    // Helpers
+    const listThemes = ()=> Object.keys(state.themes);
+    const currentTheme = ()=> state.meta.activeTheme || listThemes()[0] || '—';
+
+    function ensureActiveTheme(){
+      if(!state.themes[state.meta.activeTheme]){
+        state.meta.activeTheme = listThemes()[0] || '';
+      }
+    }
+
+    function rotateThemeByWeek(){
+      if(!state.meta.autoTheme) return;
+      const themes = state.meta.themeRotation && state.meta.themeRotation.length ? state.meta.themeRotation : listThemes();
+      const now = new Date();
+      const week = getWeekNumber(now); // ISO week number
+      if(themes.length){
+        const idx = week % themes.length;
+        state.meta.activeTheme = themes[idx];
+      }
+    }
+
+    function getWeekNumber(d){
+      // https://en.wikipedia.org/wiki/ISO_week_date#Calculating_the_week_number
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = date.getUTCDay() || 7; // Monday=1..Sunday=7
+      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+      const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1)/7);
+      return weekNo;
+    }
+
+    function renderThemes(){
+      themeSelect.innerHTML = '';
+      listThemes().forEach(name=>{
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name; themeSelect.appendChild(opt);
+      });
+      ensureActiveTheme();
+      themeSelect.value = state.meta.activeTheme;
+      themeBadge.textContent = 'Тема: ' + currentTheme();
+      topicName.textContent = currentTheme();
+      save(state);
+    }
+
+    function renderPredictions(){
+      predList.innerHTML = '';
+      const items = state.themes[currentTheme()] || [];
+      items.forEach((text, i)=>{
+        const row = document.createElement('div'); row.className='item';
+        const input = document.createElement('input'); input.value = text; input.placeholder = 'Текст предсказания';
+        input.addEventListener('input', ()=>{ state.themes[currentTheme()][i] = input.value; save(state); });
+        const del = document.createElement('button'); del.className='x'; del.innerHTML='×';
+        del.title='Удалить';
+        del.addEventListener('click', ()=>{ state.themes[currentTheme()].splice(i,1); save(state); renderPredictions(); });
+        row.appendChild(input); row.appendChild(del); predList.appendChild(row);
+      })
+    }
+
+    function pickPrediction(){
+      const key = currentTheme();
+      const list = state.themes[key] || [];
+      if(list.length === 0){ predictionEl.textContent = 'Добавь предсказания для текущей темы →'; return; }
+
+      // no-repeat logic per theme
+      state.history[key] = state.history[key] || { used: [] };
+      const used = state.history[key].used;
+
+      let choices = list.map((t,idx)=>idx);
+      if(state.meta.noRepeat && used.length < list.length){
+        choices = choices.filter(idx => !used.includes(idx));
+      }
+
+      const idx = choices[Math.floor(Math.random()*choices.length)];
+
+      if(state.meta.noRepeat){
+        used.push(idx);
+        if(used.length > list.length*2){ used.splice(0, used.length - list.length) } // cap history size
+      }
+
+      save(state);
+      predictionEl.textContent = list[idx];
+      ball.classList.remove('shake');
+      void ball.offsetWidth; // restart animation
+      ball.classList.add('shake');
+    }
+
+    function toggleEditor(){ editor.style.display = editor.style.display==='none' ? 'grid' : 'none'; }
+
+    // Events
+    ball.addEventListener('click', pickPrediction);
+    ball.addEventListener('keypress', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); pickPrediction(); }});
+    btnRandom.addEventListener('click', pickPrediction);
+
+    btnEditorToggle.addEventListener('click', toggleEditor);
+
+    addTheme.addEventListener('click', ()=>{
+      const name = (newTheme.value||'').trim(); if(!name) return;
+      if(!state.themes[name]) state.themes[name] = [];
+      state.meta.activeTheme = name;
+      if(!state.meta.themeRotation.includes(name)) state.meta.themeRotation.push(name);
+      newTheme.value=''; save(state); renderThemes(); renderPredictions();
+    });
+
+    themeSelect.addEventListener('change', ()=>{ state.meta.activeTheme = themeSelect.value; save(state); renderThemes(); renderPredictions(); });
+
+    addPred.addEventListener('click', ()=>{
+      const t = (newPred.value||'').trim(); if(!t) return;
+      state.themes[currentTheme()].push(t); newPred.value=''; save(state); renderPredictions();
+    });
+
+    btnExport.addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'predictions.json'; a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    btnImport.addEventListener('click', ()=> importFile.click());
+    importFile.addEventListener('change', async ()=>{
+      const file = importFile.files[0]; if(!file) return;
+      const text = await file.text();
+      try{ const data = JSON.parse(text); if(!data.themes) throw new Error('Неверный формат'); state = data; save(state); init(true); }
+      catch(err){ alert('Не удалось импортировать JSON: ' + err.message) }
+      importFile.value = '';
+    });
+
+    btnReset.addEventListener('click', ()=>{
+      if(confirm('Сбросить к демо‑набору?')){ state = JSON.parse(JSON.stringify(DEMO)); save(state); init(true); }
+    });
+
+    btnNoRepeat.addEventListener('click', ()=>{
+      state.meta.noRepeat = !state.meta.noRepeat; save(state); updateNoRepeatLabel();
+    });
+    function updateNoRepeatLabel(){ noRepeatState.textContent = state.meta.noRepeat ? 'вкл' : 'выкл'; }
+
+    autoTheme.addEventListener('change', ()=>{
+      state.meta.autoTheme = autoTheme.checked; save(state); if(autoTheme.checked){ rotateThemeByWeek(); renderThemes(); renderPredictions(); }
+    });
+
+    function init(skipPick){
+      rotateThemeByWeek();
+      renderThemes();
+      renderPredictions();
+      updateNoRepeatLabel();
+      autoTheme.checked = !!state.meta.autoTheme;
+      if(!skipPick) predictionEl.textContent = 'Нажми на шар ✨';
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>
